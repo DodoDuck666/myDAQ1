@@ -12,7 +12,8 @@ namespace myDAQ1
     {
         // UI Controls
         private IContainer components = null;
-        private ComboBox cmbDevice; // New ComboBox for device selection
+        private ComboBox cmbDevice;
+        private CheckBox chkSaveData; // New CheckBox for saving
         private NumericUpDown numAo1Min;
         private NumericUpDown numAo1Max;
         private NumericUpDown numAo1Steps;
@@ -54,7 +55,7 @@ namespace myDAQ1
         public Form1()
         {
             InitializeComponent();
-            LoadConnectedDevices(); // Load DAQ devices when the form opens
+            LoadConnectedDevices();
 
             btnStart.Click += BtnStart_Click;
             btnStop.Click += BtnStop_Click;
@@ -67,6 +68,7 @@ namespace myDAQ1
 
             // Initialize Controls
             this.cmbDevice = new ComboBox();
+            this.chkSaveData = new CheckBox();
             this.numAo1Min = new NumericUpDown();
             this.numAo1Max = new NumericUpDown();
             this.numAo1Steps = new NumericUpDown();
@@ -108,7 +110,7 @@ namespace myDAQ1
             ((ISupportInitialize)(this.chartIcUbe)).BeginInit();
             this.SuspendLayout();
 
-            // NumericUpDown & ComboBox Configurations
+            // NumericUpDown, ComboBox & CheckBox Configurations
             this.numAo1Min.Location = new Point(120, 18);
             this.numAo1Min.Value = 0;
             this.numAo1Max.Location = new Point(120, 58);
@@ -131,11 +133,16 @@ namespace myDAQ1
             this.cmbDevice.DropDownStyle = ComboBoxStyle.DropDownList;
             this.cmbDevice.Size = new Size(120, 24);
 
+            this.chkSaveData.Location = new Point(250, 350);
+            this.chkSaveData.Text = "Save Data to CSV";
+            this.chkSaveData.AutoSize = true;
+            this.chkSaveData.Checked = false; // Default is off
+
             // Buttons & Labels
             this.btnStart.Location = new Point(20, 340);
             this.btnStart.Size = new Size(100, 40);
-            this.btnStart.Text = "Start Measurement";
-            this.btnStop.Location = new Point(140, 340);
+            this.btnStart.Text = "Start";
+            this.btnStop.Location = new Point(130, 340);
             this.btnStop.Size = new Size(100, 40);
             this.btnStop.Text = "Stop";
 
@@ -160,11 +167,12 @@ namespace myDAQ1
 
             // Form Configurations
             this.ClientSize = new Size(1060, 680);
-            this.Controls.AddRange(new Control[] { this.cmbDevice, this.numAo1Min, this.numAo1Max, this.numAo1Steps, this.numInterval,
-                                                   this.numAo0Min, this.numAo0Max, this.numAo0Step, this.btnStart,
-                                                   this.btnStop, this.lblAi0, this.lblAi1, this.lblIb, this.lblIc,
-                                                   this.chartOutput, this.chartIbUbe, this.chartIcIb, this.chartIcUbe,
-                                                   lblDevice, lblInput1, lblInput2, lblInput3, lblInput4, lblInput5, lblInput6, lblInput7 });
+            this.Controls.AddRange(new Control[] { this.cmbDevice, this.chkSaveData, this.numAo1Min, this.numAo1Max,
+                                                   this.numAo1Steps, this.numInterval, this.numAo0Min, this.numAo0Max,
+                                                   this.numAo0Step, this.btnStart, this.btnStop, this.lblAi0, this.lblAi1,
+                                                   this.lblIb, this.lblIc, this.chartOutput, this.chartIbUbe,
+                                                   this.chartIcIb, this.chartIcUbe, lblDevice, lblInput1, lblInput2,
+                                                   lblInput3, lblInput4, lblInput5, lblInput6, lblInput7 });
             this.Name = "Form1";
             this.Text = "Transistor DAQ Measurement";
 
@@ -253,11 +261,32 @@ namespace myDAQ1
                 return;
             }
 
-            InitializeDAQ();
+            // Handle optional file saving
+            if (chkSaveData.Checked)
+            {
+                using (SaveFileDialog sfd = new SaveFileDialog())
+                {
+                    sfd.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+                    sfd.Title = "Save Measurement Data";
+                    sfd.FileName = "measurement_data.csv";
 
-            string filePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "measurement_data.csv");
-            fileWriter = new StreamWriter(filePath);
-            fileWriter.WriteLine("AO0_V,AO1_V,AI0_V,AI1_V,IB_A,IC_A");
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        fileWriter = new StreamWriter(sfd.FileName);
+                        fileWriter.WriteLine("AO0_V,AO1_V,AI0_V,AI1_V,IB_A,IC_A");
+                    }
+                    else
+                    {
+                        return; // Cancel the start if the user closes the save dialog
+                    }
+                }
+            }
+            else
+            {
+                fileWriter = null;
+            }
+
+            InitializeDAQ();
 
             currentStepAO1 = 0;
             currentVoltageAO0 = (double)numAo0Min.Value;
@@ -285,11 +314,12 @@ namespace myDAQ1
                 writerAO0.WriteSingleSample(true, currentVoltageAO0);
                 writerAO1.WriteSingleSample(true, voltageAO1);
 
-                double voltageAI0 = readerAI0.ReadSingleSample();
-                double voltageAI1 = readerAI1.ReadSingleSample();
+                double voltageAI0 = readerAI0.ReadSingleSample(); // Collector voltage
+                double voltageAI1 = readerAI1.ReadSingleSample(); // Base voltage
 
-                double ib = (voltageAO1 - voltageAI0) / R_B;
-                double ic = (currentVoltageAO0 - voltageAI1) / R_C;
+                // AI1 measures the base, AI0 measures the collector
+                double ib = (voltageAO1 - voltageAI1) / R_B;
+                double ic = (currentVoltageAO0 - voltageAI0) / R_C;
 
                 lblAi0.Text = $"AI0: {voltageAI0:F3} V";
                 lblAi1.Text = $"AI1: {voltageAI1:F3} V";
@@ -297,11 +327,15 @@ namespace myDAQ1
                 lblIc.Text = $"IC: {ic:E3} A";
 
                 chartOutput.Series[0].Points.AddY(voltageAO1);
-                chartIbUbe.Series[0].Points.AddXY(voltageAI0, ib);
+                chartIbUbe.Series[0].Points.AddXY(voltageAI1, ib);
                 chartIcIb.Series[0].Points.AddXY(ib, ic);
-                chartIcUbe.Series[0].Points.AddXY(voltageAI0, ic);
+                chartIcUbe.Series[0].Points.AddXY(voltageAI1, ic);
 
-                fileWriter.WriteLine($"{currentVoltageAO0:F4},{voltageAO1:F4},{voltageAI0:F4},{voltageAI1:F4},{ib:E6},{ic:E6}");
+                // Only write if the user chose to save a file
+                if (fileWriter != null)
+                {
+                    fileWriter.WriteLine($"{currentVoltageAO0:F4},{voltageAO1:F4},{voltageAI0:F4},{voltageAI1:F4},{ib:E6},{ic:E6}");
+                }
 
                 currentStepAO1++;
                 if (currentStepAO1 > ao1Steps)
