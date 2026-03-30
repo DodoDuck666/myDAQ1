@@ -8,10 +8,11 @@ using NationalInstruments.DAQmx;
 
 namespace myDAQ1
 {
-    public class Form1 : Form
+    public partial class Form1 : Form
     {
         // UI Controls
         private IContainer components = null;
+        private ComboBox cmbDevice; // New ComboBox for device selection
         private NumericUpDown numAo1Min;
         private NumericUpDown numAo1Max;
         private NumericUpDown numAo1Steps;
@@ -53,6 +54,7 @@ namespace myDAQ1
         public Form1()
         {
             InitializeComponent();
+            LoadConnectedDevices(); // Load DAQ devices when the form opens
 
             btnStart.Click += BtnStart_Click;
             btnStop.Click += BtnStop_Click;
@@ -64,6 +66,7 @@ namespace myDAQ1
             this.components = new Container();
 
             // Initialize Controls
+            this.cmbDevice = new ComboBox();
             this.numAo1Min = new NumericUpDown();
             this.numAo1Max = new NumericUpDown();
             this.numAo1Steps = new NumericUpDown();
@@ -90,6 +93,7 @@ namespace myDAQ1
             Label lblInput5 = new Label() { Text = "AO0 Min (V)", Location = new Point(20, 180), AutoSize = true };
             Label lblInput6 = new Label() { Text = "AO0 Max (V)", Location = new Point(20, 220), AutoSize = true };
             Label lblInput7 = new Label() { Text = "AO0 Step (V)", Location = new Point(20, 260), AutoSize = true };
+            Label lblDevice = new Label() { Text = "DAQ Device", Location = new Point(20, 300), AutoSize = true };
 
             ((ISupportInitialize)(this.numAo1Min)).BeginInit();
             ((ISupportInitialize)(this.numAo1Max)).BeginInit();
@@ -104,7 +108,7 @@ namespace myDAQ1
             ((ISupportInitialize)(this.chartIcUbe)).BeginInit();
             this.SuspendLayout();
 
-            // NumericUpDown Configurations
+            // NumericUpDown & ComboBox Configurations
             this.numAo1Min.Location = new Point(120, 18);
             this.numAo1Min.Value = 0;
             this.numAo1Max.Location = new Point(120, 58);
@@ -123,24 +127,28 @@ namespace myDAQ1
             this.numAo0Step.Location = new Point(120, 258);
             this.numAo0Step.Value = 1;
 
+            this.cmbDevice.Location = new Point(120, 298);
+            this.cmbDevice.DropDownStyle = ComboBoxStyle.DropDownList;
+            this.cmbDevice.Size = new Size(120, 24);
+
             // Buttons & Labels
-            this.btnStart.Location = new Point(20, 310);
+            this.btnStart.Location = new Point(20, 340);
             this.btnStart.Size = new Size(100, 40);
             this.btnStart.Text = "Start Measurement";
-            this.btnStop.Location = new Point(140, 310);
+            this.btnStop.Location = new Point(140, 340);
             this.btnStop.Size = new Size(100, 40);
             this.btnStop.Text = "Stop";
 
-            this.lblAi0.Location = new Point(20, 370);
+            this.lblAi0.Location = new Point(20, 400);
             this.lblAi0.Text = "AI0: 0 V";
             this.lblAi0.AutoSize = true;
-            this.lblAi1.Location = new Point(20, 400);
+            this.lblAi1.Location = new Point(20, 430);
             this.lblAi1.Text = "AI1: 0 V";
             this.lblAi1.AutoSize = true;
-            this.lblIb.Location = new Point(140, 370);
+            this.lblIb.Location = new Point(140, 400);
             this.lblIb.Text = "IB: 0 A";
             this.lblIb.AutoSize = true;
-            this.lblIc.Location = new Point(140, 400);
+            this.lblIc.Location = new Point(140, 430);
             this.lblIc.Text = "IC: 0 A";
             this.lblIc.AutoSize = true;
 
@@ -152,11 +160,11 @@ namespace myDAQ1
 
             // Form Configurations
             this.ClientSize = new Size(1060, 680);
-            this.Controls.AddRange(new Control[] { this.numAo1Min, this.numAo1Max, this.numAo1Steps, this.numInterval,
+            this.Controls.AddRange(new Control[] { this.cmbDevice, this.numAo1Min, this.numAo1Max, this.numAo1Steps, this.numInterval,
                                                    this.numAo0Min, this.numAo0Max, this.numAo0Step, this.btnStart,
                                                    this.btnStop, this.lblAi0, this.lblAi1, this.lblIb, this.lblIc,
                                                    this.chartOutput, this.chartIbUbe, this.chartIcIb, this.chartIcUbe,
-                                                   lblInput1, lblInput2, lblInput3, lblInput4, lblInput5, lblInput6, lblInput7 });
+                                                   lblDevice, lblInput1, lblInput2, lblInput3, lblInput4, lblInput5, lblInput6, lblInput7 });
             this.Name = "Form1";
             this.Text = "Transistor DAQ Measurement";
 
@@ -186,24 +194,49 @@ namespace myDAQ1
             chart.Size = new Size(350, 300);
         }
 
+        private void LoadConnectedDevices()
+        {
+            try
+            {
+                string[] devices = DaqSystem.Local.Devices;
+                if (devices.Length > 0)
+                {
+                    cmbDevice.Items.AddRange(devices);
+                    cmbDevice.SelectedIndex = 0;
+                }
+                else
+                {
+                    cmbDevice.Items.Add("No devices found");
+                    cmbDevice.SelectedIndex = 0;
+                    btnStart.Enabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not load DAQ devices: " + ex.Message);
+            }
+        }
+
         private void InitializeDAQ()
         {
             try
             {
+                string dev = cmbDevice.SelectedItem.ToString();
+
                 taskAO0 = new Task();
-                taskAO0.AOChannels.CreateVoltageChannel("myDAQ1/ao0", "", 0, 10, AOVoltageUnits.Volts);
+                taskAO0.AOChannels.CreateVoltageChannel($"{dev}/ao0", "", 0, 10, AOVoltageUnits.Volts);
                 writerAO0 = new AnalogSingleChannelWriter(taskAO0.Stream);
 
                 taskAO1 = new Task();
-                taskAO1.AOChannels.CreateVoltageChannel("myDAQ1/ao1", "", 0, 10, AOVoltageUnits.Volts);
+                taskAO1.AOChannels.CreateVoltageChannel($"{dev}/ao1", "", 0, 10, AOVoltageUnits.Volts);
                 writerAO1 = new AnalogSingleChannelWriter(taskAO1.Stream);
 
                 taskAI0 = new Task();
-                taskAI0.AIChannels.CreateVoltageChannel("myDAQ1/ai0", "", AITerminalConfiguration.Rse, -10.0, 10.0, AIVoltageUnits.Volts);
+                taskAI0.AIChannels.CreateVoltageChannel($"{dev}/ai0", "", AITerminalConfiguration.Differential, -10.0, 10.0, AIVoltageUnits.Volts);
                 readerAI0 = new AnalogSingleChannelReader(taskAI0.Stream);
 
                 taskAI1 = new Task();
-                taskAI1.AIChannels.CreateVoltageChannel("myDAQ1/ai1", "", AITerminalConfiguration.Rse, -10.0, 10.0, AIVoltageUnits.Volts);
+                taskAI1.AIChannels.CreateVoltageChannel($"{dev}/ai1", "", AITerminalConfiguration.Differential, -10.0, 10.0, AIVoltageUnits.Volts);
                 readerAI1 = new AnalogSingleChannelReader(taskAI1.Stream);
             }
             catch (DaqException ex)
@@ -214,6 +247,12 @@ namespace myDAQ1
 
         private void BtnStart_Click(object sender, EventArgs e)
         {
+            if (cmbDevice.SelectedItem.ToString() == "No devices found")
+            {
+                MessageBox.Show("Please connect a DAQ device before starting.");
+                return;
+            }
+
             InitializeDAQ();
 
             string filePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "measurement_data.csv");
