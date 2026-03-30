@@ -13,7 +13,7 @@ namespace myDAQ1
         // UI Controls
         private IContainer components = null;
         private ComboBox cmbDevice;
-        private CheckBox chkSaveData; // New CheckBox for saving
+        private CheckBox chkSaveData;
         private NumericUpDown numAo1Min;
         private NumericUpDown numAo1Max;
         private NumericUpDown numAo1Steps;
@@ -110,7 +110,7 @@ namespace myDAQ1
             ((ISupportInitialize)(this.chartIcUbe)).BeginInit();
             this.SuspendLayout();
 
-            // NumericUpDown, ComboBox & CheckBox Configurations
+            // NumericUpDown Configurations
             this.numAo1Min.Location = new Point(120, 18);
             this.numAo1Min.Value = 0;
             this.numAo1Max.Location = new Point(120, 58);
@@ -129,41 +129,42 @@ namespace myDAQ1
             this.numAo0Step.Location = new Point(120, 258);
             this.numAo0Step.Value = 1;
 
+            // Device Combo and Checkbox shifted lower
             this.cmbDevice.Location = new Point(120, 298);
             this.cmbDevice.DropDownStyle = ComboBoxStyle.DropDownList;
             this.cmbDevice.Size = new Size(120, 24);
 
-            this.chkSaveData.Location = new Point(250, 350);
+            this.chkSaveData.Location = new Point(20, 335);
             this.chkSaveData.Text = "Save Data to CSV";
             this.chkSaveData.AutoSize = true;
-            this.chkSaveData.Checked = false; // Default is off
+            this.chkSaveData.Checked = false;
 
-            // Buttons & Labels
-            this.btnStart.Location = new Point(20, 340);
+            // Buttons & Labels shifted lower
+            this.btnStart.Location = new Point(20, 365);
             this.btnStart.Size = new Size(100, 40);
             this.btnStart.Text = "Start";
-            this.btnStop.Location = new Point(130, 340);
+            this.btnStop.Location = new Point(130, 365);
             this.btnStop.Size = new Size(100, 40);
             this.btnStop.Text = "Stop";
 
-            this.lblAi0.Location = new Point(20, 400);
+            this.lblAi0.Location = new Point(20, 420);
             this.lblAi0.Text = "AI0: 0 V";
             this.lblAi0.AutoSize = true;
-            this.lblAi1.Location = new Point(20, 430);
+            this.lblAi1.Location = new Point(20, 450);
             this.lblAi1.Text = "AI1: 0 V";
             this.lblAi1.AutoSize = true;
-            this.lblIb.Location = new Point(140, 400);
+            this.lblIb.Location = new Point(140, 420);
             this.lblIb.Text = "IB: 0 A";
             this.lblIb.AutoSize = true;
-            this.lblIc.Location = new Point(140, 430);
+            this.lblIc.Location = new Point(140, 450);
             this.lblIc.Text = "IC: 0 A";
             this.lblIc.AutoSize = true;
 
-            // Setup Charts
-            SetupChart(this.chartOutput, "AO1 Sawtooth", SeriesChartType.Line, 300, 20);
-            SetupChart(this.chartIbUbe, "IB - UBE Curve", SeriesChartType.Point, 680, 20);
-            SetupChart(this.chartIcIb, "IC - IB Curve", SeriesChartType.Point, 300, 350);
-            SetupChart(this.chartIcUbe, "IC - UBE Curve", SeriesChartType.Point, 680, 350);
+            // Setup Charts with Titles and Formatting
+            SetupChart(this.chartOutput, "AO1 Sawtooth", SeriesChartType.Line, 300, 20, "Time (Steps)", "Voltage (V)", "0", "0.00");
+            SetupChart(this.chartIbUbe, "IB - UBE Curve", SeriesChartType.Point, 680, 20, "UBE (V)", "IB (A)", "0.00", "0.00E0");
+            SetupChart(this.chartIcIb, "IC - IB Curve", SeriesChartType.Point, 300, 350, "IB (A)", "IC (A)", "0.00E0", "0.00E0");
+            SetupChart(this.chartIcUbe, "IC - UBE Curve", SeriesChartType.Point, 680, 350, "UBE (V)", "IC (A)", "0.00", "0.00E0");
 
             // Form Configurations
             this.ClientSize = new Size(1060, 680);
@@ -191,9 +192,16 @@ namespace myDAQ1
             this.PerformLayout();
         }
 
-        private void SetupChart(Chart chart, string title, SeriesChartType type, int x, int y)
+        private void SetupChart(Chart chart, string title, SeriesChartType type, int x, int y, string xTitle, string yTitle, string xFormat, string yFormat)
         {
             ChartArea area = new ChartArea("ChartArea1");
+
+            // Apply Annotations and Formatting
+            area.AxisX.Title = xTitle;
+            area.AxisY.Title = yTitle;
+            area.AxisX.LabelStyle.Format = xFormat;
+            area.AxisY.LabelStyle.Format = yFormat;
+
             Series series = new Series("Series1") { ChartArea = "ChartArea1", ChartType = type };
             chart.ChartAreas.Add(area);
             chart.Series.Add(series);
@@ -261,7 +269,6 @@ namespace myDAQ1
                 return;
             }
 
-            // Handle optional file saving
             if (chkSaveData.Checked)
             {
                 using (SaveFileDialog sfd = new SaveFileDialog())
@@ -277,7 +284,7 @@ namespace myDAQ1
                     }
                     else
                     {
-                        return; // Cancel the start if the user closes the save dialog
+                        return;
                     }
                 }
             }
@@ -314,10 +321,9 @@ namespace myDAQ1
                 writerAO0.WriteSingleSample(true, currentVoltageAO0);
                 writerAO1.WriteSingleSample(true, voltageAO1);
 
-                double voltageAI0 = readerAI0.ReadSingleSample(); // Collector voltage
-                double voltageAI1 = readerAI1.ReadSingleSample(); // Base voltage
+                double voltageAI0 = readerAI0.ReadSingleSample();
+                double voltageAI1 = readerAI1.ReadSingleSample();
 
-                // AI1 measures the base, AI0 measures the collector
                 double ib = (voltageAO1 - voltageAI1) / R_B;
                 double ic = (currentVoltageAO0 - voltageAI0) / R_C;
 
@@ -331,7 +337,6 @@ namespace myDAQ1
                 chartIcIb.Series[0].Points.AddXY(ib, ic);
                 chartIcUbe.Series[0].Points.AddXY(voltageAI1, ic);
 
-                // Only write if the user chose to save a file
                 if (fileWriter != null)
                 {
                     fileWriter.WriteLine($"{currentVoltageAO0:F4},{voltageAO1:F4},{voltageAI0:F4},{voltageAI1:F4},{ib:E6},{ic:E6}");
